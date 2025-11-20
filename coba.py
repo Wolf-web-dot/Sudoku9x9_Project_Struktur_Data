@@ -1,9 +1,11 @@
 # Node untuk Linked List
 class Node:
-    def __init__(self, row, col, value=0):
+    def __init__(self, row, col, value=0, fixed=False):
         self.row = row
         self.col = col
         self.value = value
+        self.fixed = fixed
+        self.history = []
         self.next = None
 
 #Linked List untuk grid 9x9
@@ -95,18 +97,18 @@ class SudokuBoard:
 
     #SET + UNDO
     def set_value(self, row, col, value):
-        current = self.grid.get(row, col).value
-
-        #Validasi
-        if value != 0 and not self.can_place(row, col, value):
-            print("INVALID MOVE!")
+        node = self.grid.get(row, col)
+        if node.fixed:
+            print("Cannot change a fixed cell.")
             return False
-
-        #Save history only setelah validation
-        self.undo_stack.push(row, col, current)
-
-        #Replace value
-        self.grid.set(row, col, value)
+        old_value = node.value
+        self.undo_stack.push(row, col, old_value)
+        node.history.append(old_value)
+        if value != 0 and not self.can_place(row, col, value):
+            print("Invalid move!")
+            return False
+        
+        node.value = value
         return True
 
     def undo(self):
