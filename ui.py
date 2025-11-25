@@ -1,6 +1,7 @@
 import pygame
 from pygame.locals import *
 from coba import SudokuBoard   # IMPORT LOGIC KAMU
+import random  # Import library for random number generation
 
 WIDTH = 540
 HEIGHT = 540
@@ -15,6 +16,24 @@ font = pygame.font.Font(None, 48)
 # Panggil logic sudoku kamu
 board = SudokuBoard()
 
+# Function to generate 25 random numbers on the board
+def generate_random_numbers():
+    board.reset()  # Clear the board before generating numbers
+    count = 0
+
+    while count < 25:
+        r = random.randint(0, 8)  # Random row
+        c = random.randint(0, 8)  # Random column
+        num = random.randint(1, 9)  # Random number
+
+        # Place the number if the cell is empty and the move is valid
+        if board.grid.get(r, c).value == 0 and board.can_place(r, c, num):
+            board.set_value(r, c, num)
+            board.grid.get(r, c).fixed = True  # Mark as fixed
+            count += 1
+
+# Call the function to generate random numbers before the game loop starts
+generate_random_numbers()
 
 def draw_grid():
     for i in range(10):

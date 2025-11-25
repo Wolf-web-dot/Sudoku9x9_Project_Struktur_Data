@@ -51,21 +51,6 @@ class SudokuBoard:
         self.grid = LinkedList()
         self.undo_stack = UndoStack()
 
-    #PRINT BOARD
-    def print_board(self):
-        print("-------------------------")
-        for r in range(9):
-            row_str = ""
-            for c in range(9):
-                val = self.grid.get(r, c).value
-                if c % 3 == 0:
-                    row_str += "| "
-                row_str += (str(val) if val != 0 else ".") + " "
-            row_str += "|"
-            print(row_str)
-            if r % 3 == 2:
-                print("-------------------------")
-
     #VALIDASI
     def is_valid_horizontal(self, row, col, value):
         for c in range(9):
@@ -109,6 +94,7 @@ class SudokuBoard:
             return False
         
         node.value = value
+        print(f"Set value {value} at ({row}, {col})")
         return True
 
     def undo(self):
@@ -116,6 +102,7 @@ class SudokuBoard:
         if last:
             row, col, old_value = last
             self.grid.set(row, col, old_value)
+            print(f"Undo: Restored ({row}, {col}) to {old_value}")
         else:
             print("Nothing to undo.")
 
