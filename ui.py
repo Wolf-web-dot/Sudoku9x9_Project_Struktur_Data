@@ -1,108 +1,170 @@
-import pygame
-from pygame.locals import *
-from coba import SudokuBoard   # IMPORT LOGIC KAMU
-import random  # Import library for random number generation
+import tkinter as tk
+from tkinter import messagebox
+from coba import Sudoku
 
-WIDTH = 540
-HEIGHT = 540
-CELL = WIDTH // 9
+CELL_SIZE = 50
+GRID_SIZE = 9
+BLOCK_SIZE = 3
 
-pygame.init()
-win = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Sudoku - Pygame")
+class SudokuUI:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Sudoku Linked List")
 
-font = pygame.font.Font(None, 48)
+        self.sudoku = Sudoku()
+        self.selected = None
 
-# Panggil logic sudoku kamu
-board = SudokuBoard()
+        self.canvas = tk.Canvas(
+            master,
+            width=CELL_SIZE * GRID_SIZE,
+            height=CELL_SIZE * GRID_SIZE,
+            bg="white",
+            highlightthickness=0
+        )
+        self.canvas.pack()
 
-# Function to generate 25 random numbers on the board
-def generate_random_numbers():
-    board.reset()  # Clear the board before generating numbers
-    count = 0
+        self.canvas.bind("<Button-1>", self.on_click)
+        self.master.bind("<Key>", self.on_key)
+        self.canvas.bind("<Button-3>", self.on_right_click)
 
-    while count < 25:
-        r = random.randint(0, 8)  # Random row
-        c = random.randint(0, 8)  # Random column
-        num = random.randint(1, 9)  # Random number
+        # contoh puzzle
+        sample = [
+            [5, 3, 0, 0, 7, 0, 0, 0, 0],
+            [6, 0, 0, 1, 9, 5, 0, 0, 0],
+            [0, 9, 8, 0, 0, 0, 0, 6, 0],
+            [8, 0, 0, 0, 6, 0, 0, 0, 3],
+            [4, 0, 0, 8, 0, 3, 0, 0, 1],
+            [7, 0, 0, 0, 2, 0, 0, 0, 6],
+            [0, 6, 0, 0, 0, 0, 2, 8, 0],
+            [0, 0, 0, 4, 1, 9, 0, 0, 5],
+            [0, 0, 0, 0, 8, 0, 0, 7, 9]
+        ]
 
-        # Place the number if the cell is empty and the move is valid
-        if board.grid.get(r, c).value == 0 and board.can_place(r, c, num):
-            board.set_value(r, c, num)
-            board.grid.get(r, c).fixed = True  # Mark as fixed
-            count += 1
+        self.sudoku.load_puzzle(sample)
+        self.draw()
 
-# Call the function to generate random numbers before the game loop starts
-generate_random_numbers()
+        tk.Button(master, text="Undo", command=self.undo).pack(pady=10)
 
-def draw_grid():
-    for i in range(10):
-        thick = 4 if i % 3 == 0 else 1
-        pygame.draw.line(win, (0, 0, 0), (0, i*CELL), (WIDTH, i*CELL), thick)
-        pygame.draw.line(win, (0, 0, 0), (i*CELL, 0), (i*CELL, HEIGHT), thick)
+    # ========================================================
+    # Draw board
+    # ========================================================
+    def draw(self):
+        self.canvas.delete("all")
+
+        # highlight selection
+        if self.selected:
+            r, c = self.selected
+            self.canvas.create_rectangle(
+                c * CELL_SIZE, r * CELL_SIZE,
+                (c + 1) * CELL_SIZE, (r + 1) * CELL_SIZE,
+                fill="#CCE5FF", outline=""
+            )
+
+        # draw numbers
+        for r in range(GRID_SIZE):
+            for c in range(GRID_SIZE):
+                node = self.sudoku.grid.get(r, c)
+                if node.value != 0:
+
+                    # tentukan warna teks
+                    if node.fixed:
+                        color = "blue"
+                    else:
+                        # cek apakah history terakhir invalid
+                        if node.history and node.history[-1][2] == "invalid":
+                            color = "red"
+                        else:
+                            color = "black"
+
+                    self.canvas.create_text(
+                        c * CELL_SIZE + CELL_SIZE // 2,
+                        r * CELL_SIZE + CELL_SIZE // 2,
+                        text=str(node.value),
+                        font=("Arial", 22),
+                        fill=color
+                    )
+
+        # grid lines
+        for i in range(GRID_SIZE + 1):
+            lw = 3 if i % BLOCK_SIZE == 0 else 1
+            self.canvas.create_line(0, i * CELL_SIZE,
+                                    GRID_SIZE * CELL_SIZE, i * CELL_SIZE,
+                                    width=lw)
+            self.canvas.create_line(i * CELL_SIZE, 0,
+                                    i * CELL_SIZE, GRID_SIZE * CELL_SIZE,
+                                    width=lw)
+
+    # ========================================================
+    # Input Handling
+    # ========================================================
+    def on_click(self, event):
+        r = event.y // CELL_SIZE
+        c = event.x // CELL_SIZE
+        if 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE:
+            self.selected = (r, c)
+            self.draw()
+
+    def on_key(self, event):
+        if not self.selected:
+            return
+
+        if not event.char.isdigit():
+            return
+
+        val = int(event.char)
+        r, c = self.selected
+
+        success, status = self.sudoku.set_value(r, c, val)
+
+        if status == "fixed":
+            messagebox.showerror("Error", "Ini adalah angka fixed!")
+        
+        self.draw()
+
+    # ========================================================
+    # Undo
+    # ========================================================
+    def undo(self):
+        self.sudoku.undo_last()
+        self.draw()
+
+    # ========================================================
+    # Right-click History
+    # ========================================================
+    def on_right_click(self, event):
+        r = event.y // CELL_SIZE
+        c = event.x // CELL_SIZE
+        if not (0 <= r < 9 and 0 <= c < 9):
+            return
+
+        node = self.sudoku.grid.get(r, c)
+
+        win = tk.Toplevel(self.master)
+        win.title(f"History ({r},{c})")
+        win.geometry("280x350")
+
+        tk.Label(win, text=f"Riwayat input cell ({r},{c})", font=("Arial", 12, "bold")).pack(pady=10)
+
+        if not node.history:
+            tk.Label(win, text="Tidak ada history", font=("Arial", 12)).pack()
+            return
+
+        frame = tk.Frame(win)
+        frame.pack(fill="both", expand=True)
+
+        for before, after, status in node.history:
+            if status == "ok":
+                text = f"{before} → {after}   (OK)"
+            elif status == "invalid":
+                text = f"{before} → {after}   (SALAH)"
+            elif status == "clear":
+                text = f"{before} → {after}   (HAPUS)"
+            else:
+                text = f"{before} → {after}"
+
+            tk.Label(frame, text=text, font=("Arial", 12)).pack(anchor="w")
 
 
-def draw_numbers():
-    for r in range(9):
-        for c in range(9):
-            value = board.grid.get(r, c).value
-            if value != 0:
-                num = font.render(str(value), True, (0, 0, 0))
-                win.blit(num, (c*CELL + 18, r*CELL + 10))
-
-
-def highlight_cell(r, c):
-    pygame.draw.rect(win, (200, 220, 255), (c*CELL, r*CELL, CELL, CELL))
-
-
-def main():
-    selected = None
-    running = True
-
-    while running:
-        win.fill((255, 255, 255))
-
-        # highlight selected
-        if selected:
-            highlight_cell(selected[0], selected[1])
-
-        draw_grid()
-        draw_numbers()
-
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                running = False
-
-            # pilih cell
-            if event.type == MOUSEBUTTONDOWN:
-                x, y = event.pos
-                c = x // CELL
-                r = y // CELL
-                selected = (r, c)
-
-            # input angka ke LinkedList
-            if event.type == KEYDOWN:
-                if selected and event.unicode.isdigit():
-                    num = int(event.unicode)
-                    if 1 <= num <= 9:
-                        r, c = selected
-                        success = board.set_value(r, c, num)
-                        
-                        if not success:
-                            print("Invalid move")
-
-                # Undo
-                if event.key == pygame.K_u:
-                    board.undo()
-
-                # Clear selected
-                if event.key == pygame.K_BACKSPACE:
-                    r, c = selected
-                    board.set_value(r, c, 0)
-
-        pygame.display.update()
-
-    pygame.quit()
-
-
-main()
+root = tk.Tk()
+SudokuUI(root)
+root.mainloop()

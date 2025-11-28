@@ -1,4 +1,3 @@
-# Node untuk Linked List
 class Node:
     def __init__(self, row, col, value=0, fixed=False):
         self.row = row
@@ -8,18 +7,15 @@ class Node:
         self.history = []
         self.next = None
 
-#Linked List untuk grid 9x9
 class LinkedList:
     def __init__(self):
         self.head = None
         self.index = {}
         prev = None
-
         for r in range(9):
             for c in range(9):
                 node = Node(r, c)
                 self.index[(r, c)] = node
-
                 if self.head is None:
                     self.head = node
                 else:
@@ -30,146 +26,161 @@ class LinkedList:
         return self.index[(row, col)]
 
     def set(self, row, col, value):
-        self.index[(row, col)].value = value
+        node = self.index[(row, col)]
+        node.history.append(node.value)
+        node.value = value
 
-
-#Stack untuk Undo
 class UndoStack:
     def __init__(self):
         self.stack = []
 
-    def push(self, row, col, old_value):
-        self.stack.append((row, col, old_value))
+    def push(self, row, col, old_value, new_value):
+        self.stack.append((row, col, old_value, new_value))
 
     def pop(self):
-        return self.stack.pop() if self.stack else None
+        if not self.stack:
+            return None
+        return self.stack.pop()
 
-
-#Sudoku Board
-class SudokuBoard:
+class Sudoku:
     def __init__(self):
         self.grid = LinkedList()
-        self.undo_stack = UndoStack()
+        self.undo = UndoStack()
 
-    #VALIDASI
-    def is_valid_horizontal(self, row, col, value):
+    # ---------- helpers ----------
+    def board_values(self):
+        """Return current board as 9x9 list of ints."""
+        return [[self.grid.get(r, c).value for c in range(9)] for r in range(9)]
+
+    # ---------- local validation ----------
+    def is_valid_move(self, row, col, value):
+        """Check row/col/3x3 duplicates ignoring (row,col) itself."""
+        if value == 0:
+            return True
+
+        # row
         for c in range(9):
             if c != col and self.grid.get(row, c).value == value:
                 return False
-        return True
 
-    def is_valid_vertical(self, row, col, value):
+        # col
         for r in range(9):
             if r != row and self.grid.get(r, col).value == value:
                 return False
+
+        # subgrid
+        sr = (row // 3) * 3
+        sc = (col // 3) * 3
+        for r in range(sr, sr + 3):
+            for c in range(sc, sc + 3):
+                if (r != row or c != col) and self.grid.get(r, c).value == value:
+                    return False
+
         return True
 
-    def is_valid_subgrid(self, row, col, value):
-        start_r = (row // 3) * 3
-        start_c = (col // 3) * 3
-
-        for r in range(start_r, start_r + 3):
-            for c in range(start_c, start_c + 3):
-                if not (r == row and c == col) and self.grid.get(r, c).value == value:
+    # ---------- solver on a board copy (no deep copy module) ----------
+    def _can_place_on_board(self, board, row, col, value):
+        # row
+        for c in range(9):
+            if board[row][c] == value:
+                return False
+        # col
+        for r in range(9):
+            if board[r][col] == value:
+                return False
+        # subgrid
+        sr = (row // 3) * 3
+        sc = (col // 3) * 3
+        for r in range(sr, sr + 3):
+            for c in range(sc, sc + 3):
+                if board[r][c] == value:
                     return False
         return True
 
-    #CEK
-    def can_place(self, row, col, value):
-        return (self.is_valid_horizontal(row, col, value) and
-                self.is_valid_vertical(row, col, value) and
-                self.is_valid_subgrid(row, col, value))
-
-    #SET + UNDO
-    def set_value(self, row, col, value):
-        node = self.grid.get(row, col)
-        if node.fixed:
-            print("Cannot change a fixed cell.")
-            return False
-        old_value = node.value
-        self.undo_stack.push(row, col, old_value)
-        node.history.append(old_value)
-        if value != 0 and not self.can_place(row, col, value):
-            print("Invalid move!")
-            return False
-        
-        node.value = value
-        print(f"Set value {value} at ({row}, {col})")
-        return True
-
-    def undo(self):
-        last = self.undo_stack.pop()
-        if last:
-            row, col, old_value = last
-            self.grid.set(row, col, old_value)
-            print(f"Undo: Restored ({row}, {col}) to {old_value}")
-        else:
-            print("Nothing to undo.")
-
-    #FIND EMPTY
-    def find_empty(self):
+    def _find_empty_on_board(self, board):
         for r in range(9):
             for c in range(9):
-                if self.grid.get(r, c).value == 0:
+                if board[r][c] == 0:
                     return r, c
         return None
 
-    #SOLVER
-    def solve(self):
-        empty = self.find_empty()
-        if not empty:
+    def _solve_board(self, board):
+        pos = self._find_empty_on_board(board)
+        if not pos:
             return True
-
-        row, col = empty
-
-        for num in range(1, 10):
-            if self.can_place(row, col, num):
-                self.grid.set(row, col, num)
-
-                if self.solve():
+        r, c = pos
+        for n in range(1, 10):
+            if self._can_place_on_board(board, r, c, n):
+                board[r][c] = n
+                if self._solve_board(board):
                     return True
-
-                self.grid.set(row, col, 0)
-
+                board[r][c] = 0
         return False
 
-    def is_board_valid(self):
-        # cek baris
-        for r in range(9):
-            seen = set()
-            for c in range(9):
-                val = self.grid.get(r, c).value
-                if val != 0:
-                    if val in seen:
-                        return False
-                    seen.add(val)
+    def is_solvable_after_move(self, row, col, value):
+        """Simulate placing value on a copy of board and try solving."""
+        # build board copy
+        board = self.board_values()
+        board[row][col] = value
+        # quick check: if violates immediate constraints on the copy, unsolvable
+        # (this duplicates is_valid_move but on board copy - helpful for safety)
+        # Now run solver
+        return self._solve_board(board)
 
-        # cek kolom
-        for c in range(9):
-            seen = set()
-            for r in range(9):
-                val = self.grid.get(r, c).value
-                if val != 0:
-                    if val in seen:
-                        return False
-                    seen.add(val)
+    # ---------- set / undo with solvability check ----------
+    def set_value(self, row, col, value):
+        node = self.grid.get(row, col)
 
-        # cek subgrid
-        for sr in range(0, 9, 3):
-            for sc in range(0, 9, 3):
-                seen = set()
-                for r in range(sr, sr+3):
-                    for c in range(sc, sc+3):
-                        val = self.grid.get(r, c).value
-                        if val != 0:
-                            if val in seen:
-                                return False
-                            seen.add(val)
+        # angka fixed tidak boleh dirubah
+        if node.fixed:
+            return False, "fixed"
 
+        old = node.value
+
+        # Tetap ijinkan input 0 (hapus angka)
+        if value == 0:
+            node.history.append((old, value, "clear"))
+            node.value = 0
+            return True, "ok"
+
+        # Cek validasi sudoku (baris, kolom, blok)
+        valid = self.is_valid_move(row, col, value)
+        solvable = self.is_solvable_after_move(row, col, value)
+
+        # Simpan nilai apapun, tapi historynya diberi label
+        if not valid or not solvable:
+            node.history.append((old, value, "invalid"))
+            node.value = value
+            return True, "invalid"
+
+        # Jika semua OK
+        node.history.append((old, value, "ok"))
+        node.value = value
+        return True, "ok"
+
+
+
+    def undo_last(self):
+        action = self.undo.pop()
+        if action is None:
+            return False
+        r, c, old_value, new_value = action
+        self.grid.set(r, c, old_value)
         return True
+
+    # ---------- load/reset ----------
+    def load_puzzle(self, puzzle):
+        for r in range(9):
+            for c in range(9):
+                v = puzzle[r][c]
+                node = self.grid.get(r, c)
+                node.value = v
+                node.fixed = (v != 0)
 
     def reset(self):
         for r in range(9):
             for c in range(9):
-                self.grid.set(r, c, 0)
-        self.undo_stack = UndoStack()
+                node = self.grid.get(r, c)
+                node.value = 0
+                node.fixed = False
+        self.undo = UndoStack()
