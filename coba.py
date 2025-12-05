@@ -47,48 +47,33 @@ class Sudoku:
         self.grid = LinkedList()
         self.undo = UndoStack()
 
-    # ---------- helpers ----------
     def board_values(self):
-        """Return current board as 9x9 list of ints."""
         return [[self.grid.get(r, c).value for c in range(9)] for r in range(9)]
 
-    # ---------- local validation ----------
     def is_valid_move(self, row, col, value):
-        """Check row/col/3x3 duplicates ignoring (row,col) itself."""
         if value == 0:
             return True
-
-        # row
         for c in range(9):
             if c != col and self.grid.get(row, c).value == value:
                 return False
-
-        # col
         for r in range(9):
             if r != row and self.grid.get(r, col).value == value:
                 return False
-
-        # subgrid
         sr = (row // 3) * 3
         sc = (col // 3) * 3
         for r in range(sr, sr + 3):
             for c in range(sc, sc + 3):
                 if (r != row or c != col) and self.grid.get(r, c).value == value:
                     return False
-
         return True
 
-    # ---------- solver on a board copy (no deep copy module) ----------
     def _can_place_on_board(self, board, row, col, value):
-        # row
         for c in range(9):
             if board[row][c] == value:
                 return False
-        # col
         for r in range(9):
             if board[r][col] == value:
                 return False
-        # subgrid
         sr = (row // 3) * 3
         sc = (col // 3) * 3
         for r in range(sr, sr + 3):
@@ -118,57 +103,41 @@ class Sudoku:
         return False
 
     def is_solvable_after_move(self, row, col, value):
-        """Simulate placing value on a copy of board and try solving."""
-        # build board copy
         board = self.board_values()
         board[row][col] = value
-        # quick check: if violates immediate constraints on the copy, unsolvable
-        # (this duplicates is_valid_move but on board copy - helpful for safety)
-        # Now run solver
         return self._solve_board(board)
 
-    # ---------- set / undo with solvability check ----------
     def set_value(self, row, col, value):
         node = self.grid.get(row, col)
-
-        # angka fixed tidak boleh dirubah
         if node.fixed:
             return False, "fixed"
-
         old = node.value
-
-        # Tetap ijinkan input 0 (hapus angka)
         if value == 0:
             node.history.append((old, value, "clear"))
             node.value = 0
+            self.undo.push(row, col, old, value)
             return True, "ok"
-
-        # Cek validasi sudoku (baris, kolom, blok)
         valid = self.is_valid_move(row, col, value)
         solvable = self.is_solvable_after_move(row, col, value)
-
-        # Simpan nilai apapun, tapi historynya diberi label
         if not valid or not solvable:
             node.history.append((old, value, "invalid"))
             node.value = value
+            self.undo.push(row, col, old, value)
             return True, "invalid"
-
-        # Jika semua OK
         node.history.append((old, value, "ok"))
         node.value = value
+        self.undo.push(row, col, old, value)
         return True, "ok"
-
-
 
     def undo_last(self):
         action = self.undo.pop()
         if action is None:
             return False
         r, c, old_value, new_value = action
-        self.grid.set(r, c, old_value)
+        node = self.grid.get(r, c)
+        node.value = old_value
         return True
 
-    # ---------- load/reset ----------
     def load_puzzle(self, puzzle):
         for r in range(9):
             for c in range(9):
