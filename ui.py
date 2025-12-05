@@ -52,17 +52,17 @@ class SudokuUI:
                 (c + 1) * CELL_SIZE, (r + 1) * CELL_SIZE,
                 fill="#CCE5FF", outline=""
             )
+
         for r in range(GRID_SIZE):
             for c in range(GRID_SIZE):
-                node = self.sudoku.grid.get(r, c)
+                node = self.sudoku.grid.get_node(r, c)
                 if node.value != 0:
                     if node.fixed:
                         color = "blue"
+                    elif node.history and node.history[-1][2] == "invalid":
+                        color = "red"
                     else:
-                        if node.history and node.history[-1][2] == "invalid":
-                            color = "red"
-                        else:
-                            color = "black"
+                        color = "black"
                     self.canvas.create_text(
                         c * CELL_SIZE + CELL_SIZE // 2,
                         r * CELL_SIZE + CELL_SIZE // 2,
@@ -70,6 +70,7 @@ class SudokuUI:
                         font=("Arial", 22),
                         fill=color
                     )
+
         for i in range(GRID_SIZE + 1):
             lw = 3 if i % BLOCK_SIZE == 0 else 1
             self.canvas.create_line(0, i * CELL_SIZE,
@@ -95,7 +96,7 @@ class SudokuUI:
         r, c = self.selected
         success, status = self.sudoku.set_value(r, c, val)
         if status == "fixed":
-            messagebox.showerror("Error", "Ini adalah angka fixed")
+            messagebox.showerror("Error", "Ini angka fixed")
         self.draw()
 
     def undo(self):
@@ -107,26 +108,32 @@ class SudokuUI:
         c = event.x // CELL_SIZE
         if not (0 <= r < 9 and 0 <= c < 9):
             return
-        node = self.sudoku.grid.get(r, c)
+        node = self.sudoku.grid.get_node(r, c)
+
         win = tk.Toplevel(self.master)
         win.title(f"History ({r},{c})")
         win.geometry("280x350")
+
         tk.Label(win, text=f"Riwayat input cell ({r},{c})", font=("Arial", 12, "bold")).pack(pady=10)
+
         if not node.history:
             tk.Label(win, text="Tidak ada history", font=("Arial", 12)).pack()
             return
+
         frame = tk.Frame(win)
         frame.pack(fill="both", expand=True)
+
         for before, after, status in node.history:
             if status == "ok":
-                text = f"{before} → {after}   (OK)"
+                text = f"{before} → {after} (OK)"
             elif status == "invalid":
-                text = f"{before} → {after}   (SALAH)"
+                text = f"{before} → {after} (SALAH)"
             elif status == "clear":
-                text = f"{before} → {after}   (HAPUS)"
+                text = f"{before} → {after} (HAPUS)"
             else:
                 text = f"{before} → {after}"
             tk.Label(frame, text=text, font=("Arial", 12)).pack(anchor="w")
+
 
 root = tk.Tk()
 SudokuUI(root)
