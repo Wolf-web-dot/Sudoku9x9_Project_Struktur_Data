@@ -13,6 +13,8 @@ class SudokuUI:
         self.sudoku = Sudoku()
         self.selected = None
 
+    
+
         self.canvas = tk.Canvas(
             master,
             width=CELL_SIZE * GRID_SIZE,
@@ -97,7 +99,14 @@ class SudokuUI:
         success, status = self.sudoku.set_value(r, c, val)
         if status == "fixed":
             messagebox.showerror("Error", "Ini angka fixed")
+        elif status == "duplicate":
+            messagebox.showinfo("Peringatan", "Nilai ini sudah pernah dimasukkan di kotak ini")
         self.draw()
+
+    
+        if self.sudoku.is_winner():
+            messagebox.showinfo("Menang", "Sudoku selesai")
+
 
     def undo(self):
         self.sudoku.undo_last()
